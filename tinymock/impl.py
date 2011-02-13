@@ -28,28 +28,102 @@
 #
 ######################################################################
 
-'''
-This is a library for building simple mock objects.
-'''
+"""
+This is a library for building simple mock objects.  Things are kept
+as simple as possible.  The goal is to easily make mock functions and
+objects that can be used to stub out calls when doing unit tests.
+
+The simplest object to mock up is a function.  If we're testing a
+wrapper that doubles a value before calling a function, it can be done
+like this::
+
+    def double_arg(fcn, value):
+        fcn(value * 2)
+
+    class TestIt(tinymock.TestCase):
+        def test_double_arg(self):
+            fcn = tinymock.MockFunction(2)
+            double_arg(fcn, 1)
+
+The MockFunction constructor creates a new mock function, and takes as
+arguments the values that you are expecting the function to be called
+with.   In the case above, the mock fuction is expecting a 2 to be
+passed in.
+
+A return value can be specified by calling the returns method on the
+newly created MockFunction object.  Here is an example that tests a
+function that doubles the return value of a function that it calls::
+
+    def double_result(fcn):
+        return 2 * fcn()
+
+    class TestIt(tinymock.TestCase):
+        def test_double_result(self):
+            fcn = tinymock.MockFunction().returns(1)
+            self.assertEquals(2, double_result(fcn))
+
+By default, a MockFunction expects to be called just once.  You can
+use the add_call method.  Here is a test case that directly calls a
+mock function three times::
+
+    class TestIt(tinymock.TestCase):
+        def test_calls(self):
+            fcn = (tinymock.MockFuntion().returns(1)
+                   .add_call("a").returns(2)
+                   .add_call("b", "c").returns(3))
+            self.assertEquals(1, fcn())
+            self.assertEquals(2, fcn("a"))
+            self.assertEquals(3, fcn("b", "c"))
+                     
+
+"""
 
 import time
 import unittest
 
 class MockFunction(object):
 
+    """
+    An object that mimics a function, checking the values passed in as
+    arguments, and returning a value or raising an exception.
+
+    TODO: Handle keyword arguments.
+    """
+
     def __init__(self, *args):
+        """
+        Creates a new MockFunction that is expecting to be called with
+        args.
+        """
         self._calls = []
         self.add_call(*args)
 
     def add_call(self, *args):
+        """
+        Adds another expected call to this function, expecting the
+        arguments given.
+
+        Returns this MockFunction so that a return value can be added
+        on.
+        """
         self._calls.append([args, None, None])
         return self
 
     def returns(self, return_value):
+        """
+        Specifies the value to be returned.  Returns this MockFunction
+        object so that another call can be chained on.
+        """
         self._calls[-1][1] = return_value
         return self
 
     def raises(self, exception):
+        """
+        Specifies an exception to be raised in response to the current
+        call.
+
+        Returns this MockFunction so another call can be chained on.
+        """
         self._calls[-1][2] = exception
         return self
 
@@ -65,6 +139,14 @@ class MockFunction(object):
             raise exception
         else:
             return return_value
+
+    def check_done(self):
+        """
+        Makes sure that all of the calls that were expected have
+        happened.  Raises an exception if not.
+        """
+        if len(self._calls) != 0:
+            raise Exception("Function not called enough")
 
 class MockObject(object):
 
@@ -84,8 +166,7 @@ class TestCase(unittest.TestCase):
         '''
         super(TestCase, self).tearDown()
         for f in self._functions:
-            if len(f._calls) != 0:
-                raise Exception("Function not called enough")
+            f.check_done()
 
     def mock_fcn(self, *args):
         f = MockFunction(*args)
