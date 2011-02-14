@@ -1,24 +1,30 @@
 
-tinymock.impl
-=============
+tinymock
+========
 
-.. automodule:: tinymock.impl
+.. automodule:: tinymock
+
+TestCase Class
+--------------
+
+.. autoclass:: tinymock.TestCase
+   :members:
 
 MockFunction Class
 ------------------
 
-.. autoclass:: tinymock.impl.MockFunction
+.. autoclass:: tinymock.MockFunction
    :members:
 
 MockObject Class
 ----------------
 
-.. autoclass:: tinymock.impl.MockObject
+.. autoclass:: tinymock.MockObject
    :members:
 
 Patch Class
 -----------
 
-.. autoclass:: tinymock.impl.Patch
+.. autoclass:: tinymock.Patch
 
 
