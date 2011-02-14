@@ -3,15 +3,34 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to TinyMock's documentation!
-====================================
+tinymock - super simple mock objects for Python
+===============================================
 
-Contents:
+.. automodule:: tinymock
 
-.. toctree::
-   :maxdepth: 2
+TestCase Class
+--------------
 
-   tinymock
+.. autoclass:: tinymock.TestCase
+   :members:
+
+MockFunction Class
+------------------
+
+.. autoclass:: tinymock.MockFunction
+   :members:
+
+MockObject Class
+----------------
+
+.. autoclass:: tinymock.MockObject
+   :members:
+
+Patch Class
+-----------
+
+.. autoclass:: tinymock.Patch
+
 
 Indices and tables
 ==================
