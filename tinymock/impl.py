@@ -167,6 +167,12 @@ class TestCase(unittest.TestCase):
         """
         return MockObject(**kwargs)
 
+    def patch(self, obj, field, value):
+        """
+        Convenience method to make Patch objects.
+        """
+        return Patch(obj, field, value)
+
 class Patch(object):
 
     """
@@ -246,6 +252,10 @@ class TestMock(TestCase):
 
     def test_patch(self):
         with Patch(time, 'sleep', self.mock_fcn(1).returns(2)):
+            self.assertEquals(2, time.sleep(1))
+
+    def test_patch_method(self):
+        with self.patch(time, 'sleep', self.mock_fcn(1).returns(2)):
             self.assertEquals(2, time.sleep(1))
 
 if __name__ == '__main__':
