@@ -31,36 +31,43 @@ This is a library for building simple mock objects.  Things are kept
 as simple as possible.  The goal is to easily make mock functions and
 objects that can be used to stub out calls when doing unit tests.
 
+The module provides a TestCase class that your test cases should
+inherit from, instead of inheriting from unittest.TestCase.  The
+tinymock.TestCase class provides methods to create mock objects and
+mock functions, and checks at the end of each test that all of the
+expected calls were made to mock functions.
+
 The simplest object to mock up is a function.  Here is an example of
 calling a mock function that expects a single argument whose value is
 1::
 
     class TestIt(tinymock.TestCase):
-        def test_double_arg(self):
-            fcn = tinymock.MockFunction(1)
+        def test_call_function(self):
+            fcn = self.mock_fcn(1)
             fcn(1)
 
-The MockFunction constructor creates a new mock function, and takes as
-arguments the values that you are expecting the function to be called
-with.   In the case above, the mock fuction is expecting a 1 to be
-passed in.
+The mock_fcn method in tinymock.TestCase creates a new mock function,
+and takes as arguments the values that you are expecting the function
+to be called with.  In the case above, the mock fuction is expecting a
+1 to be passed in.
 
 A return value can be specified by calling the returns method on the
 newly created MockFunction object.  Here is an example that calls a
 function that returns 2::
 
     class TestIt(tinymock.TestCase):
-        def test_double_result(self):
-            fcn = tinymock.MockFunction().returns(2)
+        def test_function_return(self):
+            fcn = self.mock_fcn().returns(2)
             self.assertEquals(2, fcn())
 
 By default, a MockFunction expects to be called just once.  You can
 use the add_call method.  Here is a test case that directly calls a
-mock function three times::
+mock function three times, each time with different arguments and a
+different return value::
 
     class TestIt(tinymock.TestCase):
         def test_calls(self):
-            fcn = (tinymock.MockFuntion().returns(1)
+            fcn = (self.mock_fcn().returns(1)
                    .add_call("a").returns(2)
                    .add_call("b", "c").returns(3))
             self.assertEquals(1, fcn())
@@ -69,16 +76,17 @@ mock function three times::
                      
 Making mock objects is straightforward.  The MockObject class is
 simply an container for the members of the object, which can be set
-manually, or by passing in keyword arguments to the constructor.
+manually, or by passing in keyword arguments to the constructor.  The
+mock_obj method in tinymock.TestCase creates new mock objects.
 
 Here is an example that has an attribute a holding 1, and a mocked
 method b that returns 2::
 
     class TestIt(tinymock.TestCase):
         def test_object(self):
-            obj = tinymock.MockObject(
+            obj = self.mock_obj(
                 a = 1,
-                b = tinymock.MockFunction().returns(2)
+                b = self.mock_fcn().returns(2)
                 )
             self.assertEquals(1, obj.a)
             self.assertEquals(2, obj.b())
