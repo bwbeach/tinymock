@@ -81,24 +81,30 @@ mock function three times::
 import time
 import unittest
 
+class ExpectedCall(object):
+
+    def __init__(self, args, kwargs):
+        self.args = args
+        self.kwargs = kwargs
+        self.return_value = None
+        self.exception = None
+
 class MockFunction(object):
 
     """
     An object that mimics a function, checking the values passed in as
     arguments, and returning a value or raising an exception.
-
-    TODO: Handle keyword arguments.
     """
 
-    def __init__(self, *args):
+    def __init__(self, *args, **kwargs):
         """
         Creates a new MockFunction that is expecting to be called with
         args.
         """
         self._calls = []
-        self.add_call(*args)
+        self.add_call(*args, **kwargs)
 
-    def add_call(self, *args):
+    def add_call(self, *args, **kwargs):
         """
         Adds another expected call to this function, expecting the
         arguments given.
@@ -106,7 +112,7 @@ class MockFunction(object):
         Returns this MockFunction so that a return value can be added
         on.
         """
-        self._calls.append([args, None, None])
+        self._calls.append(ExpectedCall(args, kwargs))
         return self
 
     def returns(self, return_value):
@@ -114,7 +120,7 @@ class MockFunction(object):
         Specifies the value to be returned.  Returns this MockFunction
         object so that another call can be chained on.
         """
-        self._calls[-1][1] = return_value
+        self._calls[-1].return_value = return_value
         return self
 
     def raises(self, exception):
@@ -124,21 +130,25 @@ class MockFunction(object):
 
         Returns this MockFunction so another call can be chained on.
         """
-        self._calls[-1][2] = exception
+        self._calls[-1].exception = exception
         return self
 
-    def __call__(self, *args):
+    def __call__(self, *args, **kwargs):
         if len(self._calls) == 0:
             raise "Unexpected call"
-        (expected_args, return_value, exception) = self._calls.pop(0)
-        if expected_args != args:
-            print "Expected arguments:", expected_args
+        call = self._calls.pop(0)
+        if call.args != args:
+            print "Expected arguments:", call.args
             print "Actual arguments:  ", args
             raise Exception("Argument mismatch")
-        if exception is not None:
-            raise exception
+        if call.kwargs != kwargs:
+            print "Expected keyword arguments:", call.kwargs
+            print "Actual keyword arguments:  ", kwargs
+            raise Exception("Keyword argument mismatch")
+        if call.exception is not None:
+            raise call.exception
         else:
-            return return_value
+            return call.return_value
 
     def check_done(self):
         """
@@ -168,8 +178,8 @@ class TestCase(unittest.TestCase):
         for f in self._functions:
             f.check_done()
 
-    def mock_fcn(self, *args):
-        f = MockFunction(*args)
+    def mock_fcn(self, *args, **kwargs):
+        f = MockFunction(*args, **kwargs)
         self._functions.append(f)
         return f
 
@@ -202,6 +212,16 @@ class TestMock(TestCase):
         f = self.mock_fcn(1)
         def should_raise():
             f(2)
+        self.assertRaises(Exception, should_raise)
+
+    def test_function_keyword(self):
+        f = self.mock_fcn(a = 5)
+        f(a = 5)
+
+    def test_function_extra_keyword(self):
+        f = self.mock_fcn()
+        def should_raise():
+            f(a = 5)
         self.assertRaises(Exception, should_raise)
 
     def test_function_not_called(self):
