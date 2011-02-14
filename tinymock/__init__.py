@@ -26,4 +26,4 @@
 #
 ######################################################################
 
-from .impl import TestCase, MockFunction, MockObject, patch
+from .impl import TestCase, MockFunction, MockObject, Patch

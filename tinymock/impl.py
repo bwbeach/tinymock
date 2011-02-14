@@ -33,34 +33,28 @@ This is a library for building simple mock objects.  Things are kept
 as simple as possible.  The goal is to easily make mock functions and
 objects that can be used to stub out calls when doing unit tests.
 
-The simplest object to mock up is a function.  If we're testing a
-wrapper that doubles a value before calling a function, it can be done
-like this::
-
-    def double_arg(fcn, value):
-        fcn(value * 2)
+The simplest object to mock up is a function.  Here is an example of
+calling a mock function that expects a single argument whose value is
+1::
 
     class TestIt(tinymock.TestCase):
         def test_double_arg(self):
-            fcn = tinymock.MockFunction(2)
-            double_arg(fcn, 1)
+            fcn = tinymock.MockFunction(1)
+            fcn(1)
 
 The MockFunction constructor creates a new mock function, and takes as
 arguments the values that you are expecting the function to be called
-with.   In the case above, the mock fuction is expecting a 2 to be
+with.   In the case above, the mock fuction is expecting a 1 to be
 passed in.
 
 A return value can be specified by calling the returns method on the
-newly created MockFunction object.  Here is an example that tests a
-function that doubles the return value of a function that it calls::
-
-    def double_result(fcn):
-        return 2 * fcn()
+newly created MockFunction object.  Here is an example that calls a
+function that returns 2::
 
     class TestIt(tinymock.TestCase):
         def test_double_result(self):
-            fcn = tinymock.MockFunction().returns(1)
-            self.assertEquals(2, double_result(fcn))
+            fcn = tinymock.MockFunction().returns(2)
+            self.assertEquals(2, fcn())
 
 By default, a MockFunction expects to be called just once.  You can
 use the add_call method.  Here is a test case that directly calls a
@@ -75,7 +69,33 @@ mock function three times::
             self.assertEquals(2, fcn("a"))
             self.assertEquals(3, fcn("b", "c"))
                      
+Making mock objects is straightforward.  The MockObject class is
+simply an container for the members of the object, which can be set
+manually, or by passing in keyword arguments to the constructor.
 
+Here is an example that has an attribute a holding 1, and a mocked
+method b that returns 2::
+
+    class TestIt(tinymock.TestCase):
+        def test_object(self):
+            obj = tinymock.MockObject(
+                a = 1,
+                b = tinymock.MockFunction().returns(2)
+                )
+            self.assertEquals(1, obj.a)
+            self.assertEquals(2, obj.b())
+
+The Patch class can be used to replace a field in another module or
+object for the duration of a test.  A Patch object is used as the
+context for a with statement to make the replacement, and then to
+restore things when the with statement is done.  In this example, the
+sleep function is replaced with a mock function.  This way the test
+can verfy that sleep was called, without having to wait::
+
+    class TestIt(tinymock.TestCase):
+        def test_sleeper(self):
+            with Patch(time, 'sleep', self.mock_fcn(10)):
+                function_that_should_sleep_10_seconds()
 """
 
 import time
@@ -99,7 +119,7 @@ class MockFunction(object):
     def __init__(self, *args, **kwargs):
         """
         Creates a new MockFunction that is expecting to be called with
-        args.
+        regular arguments args and keywords arguments kwargs.
         """
         self._calls = []
         self.add_call(*args, **kwargs)
@@ -107,7 +127,7 @@ class MockFunction(object):
     def add_call(self, *args, **kwargs):
         """
         Adds another expected call to this function, expecting the
-        arguments given.
+        arguments and keyword argumentsgiven.
 
         Returns this MockFunction so that a return value can be added
         on.
@@ -160,7 +180,18 @@ class MockFunction(object):
 
 class MockObject(object):
 
+    """
+    A class that can pretend to be an arbitrary object.
+
+    This class has no methods (other than the constructor).  It is
+    just a container for whatever attributes you assign to it.
+    """
+
     def __init__(self, **kwargs):
+        """
+        Creates a new mock object with the attributes specified by the
+        keyword arguments passed in.
+        """
         for (key, value) in kwargs.items():
             self.__dict__[key] = value
 
@@ -186,9 +217,20 @@ class TestCase(unittest.TestCase):
     def mock_obj(self, **kwargs):
         return MockObject(**kwargs)
 
-class Patcher(object):
-    def __init__(self, object, field, value):
-        self._object = object
+class Patch(object):
+
+    """
+    A context for use in a with statement to temporarily replace a
+    member of a module or object with a new value.
+    """
+
+    def __init__(self, obj, field, value):
+        """
+        Creates a new context.  The named field of the module or
+        object will be replaced with the given value just for the
+        duration of the context.
+        """
+        self._object = obj
         self._field = field
         self._value = value
 
@@ -199,9 +241,6 @@ class Patcher(object):
     def __exit__(self, *args):
         self._object.__dict__[self._field] = self._prev_value
         
-def patch(object, field, value):
-    return Patcher(object, field, value)
-
 class TestMock(TestCase):
 
     def test_function_return_value(self):
@@ -256,7 +295,7 @@ class TestMock(TestCase):
         self.assertEquals(2, x.bar)
 
     def test_patch(self):
-        with patch(time, 'sleep', self.mock_fcn(1).returns(2)):
+        with Patch(time, 'sleep', self.mock_fcn(1).returns(2)):
             self.assertEquals(2, time.sleep(1))
 
 if __name__ == '__main__':
