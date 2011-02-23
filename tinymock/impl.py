@@ -176,11 +176,11 @@ class TestCase(unittest.TestCase):
         """
         return MockObject(**kwargs)
 
-    def patch(self, obj, field, value):
+    def patch(self, obj = None, field = None, value = None, triples = None):
         """
         Convenience method to make Patch objects.
         """
-        return Patch(obj, field, value)
+        return Patch(obj, field, value, triples)
 
 class Patch(object):
 
@@ -189,25 +189,72 @@ class Patch(object):
     member of a module or object with a new value.
     """
 
-    def __init__(self, obj, field, value):
+    def __init__(self, obj = None, field = None, value = None, triples = None):
         """
         Creates a new context.  The named field of the module or
         object will be replaced with the given value just for the
         duration of the context.
+
+        Each patch requires three things: (1) the object to patch, (2)
+        a string that is the name of the field to patch, and (3) the
+        value to put in that field.
+
+        This constructor can be called in two different ways.  You can
+        pass in three arguments that are the object, field, and value::
+
+            Patch(my_object, 'name', 'Fred')
+
+        Or, you can call it with a list of patches to make, using the
+        'triples' keyword argument:
+
+            triples = [
+                (my_object, name, 'Fred'),
+                (my_object, age, 37),
+                (my_other_object, name, 'Joe')
+                ]
+            Patch(triples = patches)
+
+        The value of None is special; it means that the field of the
+        object should be removed.
         """
-        self._object = obj
-        self._field = field
-        self._value = value
+        if triples is not None:
+            if (obj is not None) or (field is not None) or (value is not None):
+                raise ValueError(
+                    "Do not pass in an object, field, or value " +
+                    "when using the keyword 'triples'"
+                    )
+            self._triples = triples
+        else:
+            self._triples = [(obj, field, value)]
 
     def __enter__(self):
-        self._prev_value = self._object.__dict__.get(self._field)
-        self._object.__dict__[self._field] = self._value
+        self.swap()
 
     def __exit__(self, *args):
-        if self._prev_value is None:
-            del self._object.__dict__[self._field]
+        self.swap()
+
+    def swap(self):
+        """
+        Swap the values in self._triples with the values out in the
+        wild.
+        """
+        self._triples = [
+            (obj, field, self.swap_value(obj, field, value))
+            for (obj, field, value) in self._triples
+            ]
+
+    def swap_value(self, obj, field, value):
+        """
+        Stores the given value in the object and returns the old
+        value.
+        """
+        old_value = obj.__dict__.get(field)
+        if value is None:
+            if old_value is not None:
+                del obj.__dict__[field]
         else:
-            self._object.__dict__[self._field] = self._prev_value
+            obj.__dict__[field] = value
+        return old_value
         
 class TestMock(TestCase):
 
@@ -273,6 +320,18 @@ class TestMock(TestCase):
     def test_patch_non_existant(self):
         with self.patch(time, 'duerme', self.mock_fcn(1).returns(2)):
             self.assertEquals(2, time.duerme(1))
+
+    def test_patch_multiple(self):
+        class Person():
+            def __init__(self, name):
+                self.name = name
+        p1 = Person('Joe')
+        p2 = Person('Fred')
+        with self.patch(triples = [(p1, 'name', 'Sally'), (p2, 'age', 37)]):
+            self.assertEquals(dict(name = 'Sally'), p1.__dict__)
+            self.assertEquals(dict(name = 'Fred', age = 37), p2.__dict__)
+        self.assertEquals(dict(name = 'Joe'), p1.__dict__)
+        self.assertEquals(dict(name = 'Fred'), p2.__dict__)
 
 if __name__ == '__main__':
     unittest.main()
