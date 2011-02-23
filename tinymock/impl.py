@@ -200,11 +200,14 @@ class Patch(object):
         self._value = value
 
     def __enter__(self):
-        self._prev_value = self._object.__dict__[self._field]
+        self._prev_value = self._object.__dict__.get(self._field)
         self._object.__dict__[self._field] = self._value
 
     def __exit__(self, *args):
-        self._object.__dict__[self._field] = self._prev_value
+        if self._prev_value is None:
+            del self._object.__dict__[self._field]
+        else:
+            self._object.__dict__[self._field] = self._prev_value
         
 class TestMock(TestCase):
 
@@ -266,6 +269,10 @@ class TestMock(TestCase):
     def test_patch_method(self):
         with self.patch(time, 'sleep', self.mock_fcn(1).returns(2)):
             self.assertEquals(2, time.sleep(1))
+
+    def test_patch_non_existant(self):
+        with self.patch(time, 'duerme', self.mock_fcn(1).returns(2)):
+            self.assertEquals(2, time.duerme(1))
 
 if __name__ == '__main__':
     unittest.main()
