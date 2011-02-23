@@ -2,7 +2,7 @@
 # 
 # File: impl.py
 # 
-# Copyright (c) 2011 by Brian Beach
+# Copyright 2011 TiVo Inc. All Rights Reserved. by Brian Beach
 # 
 # This software is licensed under the MIT license.
 # 
@@ -30,6 +30,9 @@
 
 import time
 import unittest
+
+class MockException(Exception):
+    pass
 
 class ExpectedCall(object):
 
@@ -85,16 +88,22 @@ class MockFunction(object):
 
     def __call__(self, *args, **kwargs):
         if len(self._calls) == 0:
-            raise "Unexpected call"
+            raise MockException("Unexpected call")
         call = self._calls.pop(0)
         if call.args != args:
-            print "Expected arguments:", call.args
-            print "Actual arguments:  ", args
-            raise Exception("Argument mismatch")
+            message = (
+                "Argument mismatch:\n" +
+                ("Expected arguments: %s\n" % call.args) +
+                ("Actual arguments:   %s\n" % args)
+                )
+            raise MockException(message)
         if call.kwargs != kwargs:
-            print "Expected keyword arguments:", call.kwargs
-            print "Actual keyword arguments:  ", kwargs
-            raise Exception("Keyword argument mismatch")
+            message = (
+                "Keyword argument mismatch:\n" +
+                ("Expected keyword arguments: %s\n" % call.kwargs) +
+                ("Actual keyword arguments:   %s\n" % kwargs)
+                )
+            raise MockException(message)
         if call.exception is not None:
             raise call.exception
         else:
@@ -106,7 +115,7 @@ class MockFunction(object):
         happened.  Raises an exception if not.
         """
         if len(self._calls) != 0:
-            raise Exception("Function not called enough")
+            raise MockException("Function not called enough")
 
 class MockObject(object):
 
@@ -207,7 +216,7 @@ class TestMock(TestCase):
         f = self.mock_fcn(1)
         def should_raise():
             f(2)
-        self.assertRaises(Exception, should_raise)
+        self.assertRaises(MockException, should_raise)
 
     def test_function_keyword(self):
         f = self.mock_fcn(a = 5)
@@ -217,11 +226,11 @@ class TestMock(TestCase):
         f = self.mock_fcn()
         def should_raise():
             f(a = 5)
-        self.assertRaises(Exception, should_raise)
+        self.assertRaises(MockException, should_raise)
 
     def test_function_not_called(self):
         f = self.mock_fcn()
-        self.assertRaises(Exception, self.tearDown)
+        self.assertRaises(MockException, self.tearDown)
         self._functions = []
 
     def test_function_called_too_many_times(self):
@@ -229,7 +238,7 @@ class TestMock(TestCase):
         f()
         def should_raise():
             f()
-        self.assertRaises(Exception, should_raise)
+        self.assertRaises(MockException, should_raise)
     
     def test_function_called_twice(self):
         f = self.mock_fcn().returns(1)
