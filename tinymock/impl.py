@@ -36,74 +36,51 @@ class MockException(Exception):
 
 class ExpectedCall(object):
 
-    def __init__(self, args, kwargs):
+    def __init__(self, fcn, args, kwargs):
+        self.fcn = fcn
         self.args = args
         self.kwargs = kwargs
         self.return_value = None
         self.exception = None
 
-class MockFunction(object):
+class CallContext(object):
 
     """
-    An object that mimics a function, checking the values passed in as
-    arguments, and returning a value or raising an exception.
+    This provides a context in which mock function calls are tracked.
+    Specifically, this tracks what calls are expected and provides ordering
+    over all the mock functions and objects that use it.
     """
 
-    def __init__(self, *args, **kwargs):
-        """
-        Creates a new MockFunction that is expecting to be called with
-        regular arguments args and keywords arguments kwargs.
-        """
+    def __init__(self):
         self._calls = []
-        self.add_call(*args, **kwargs)
 
-    def add_call(self, *args, **kwargs):
-        """
-        Adds another expected call to this function, expecting the
-        arguments and keyword argumentsgiven.
+    def add_call(self, fcn, *args, **kwargs):
+        self._calls.append(ExpectedCall(fcn, args, kwargs))
 
-        Returns this MockFunction so that a return value can be added
-        on.
-        """
-        self._calls.append(ExpectedCall(args, kwargs))
-        return self
-
-    def returns(self, return_value):
-        """
-        Specifies the value to be returned.  Returns this MockFunction
-        object so that another call can be chained on.
-        """
+    def set_last_return(self, fcn, return_value):
+        if fcn != self._calls[-1].fcn:
+            raise Exception("return values must be set for the last call")
         self._calls[-1].return_value = return_value
-        return self
 
-    def raises(self, exception):
-        """
-        Specifies an exception to be raised in response to the current
-        call.
+    def set_last_exception(self, fcn, return_value):
+        if fcn != self._calls[-1].fcn:
+            raise Exception("exceptions must be set for the last call")
+        self._calls[-1].return_value = return_value
 
-        Returns this MockFunction so another call can be chained on.
-        """
-        self._calls[-1].exception = exception
-        return self
-
-    def __call__(self, *args, **kwargs):
+    def call(self, fcn, *args, **kwargs):
         if len(self._calls) == 0:
             raise MockException("Unexpected call")
         call = self._calls.pop(0)
+        if call.fcn != fcn:
+            raise MockException("Function mismatch")
         if call.args != args:
-            message = (
-                "Argument mismatch:\n" +
-                ("Expected arguments: %s\n" % call.args) +
-                ("Actual arguments:   %s\n" % args)
-                )
-            raise MockException(message)
+            print "Expected arguments:", call.args
+            print "Actual arguments:  ", args
+            raise MockException("Argument mismatch")
         if call.kwargs != kwargs:
-            message = (
-                "Keyword argument mismatch:\n" +
-                ("Expected keyword arguments: %s\n" % call.kwargs) +
-                ("Actual keyword arguments:   %s\n" % kwargs)
-                )
-            raise MockException(message)
+            print "Expected keyword arguments:", call.kwargs
+            print "Actual keyword arguments:  ", kwargs
+            raise MockException("Keyword argument mismatch")
         if call.exception is not None:
             raise call.exception
         else:
@@ -115,7 +92,54 @@ class MockFunction(object):
         happened.  Raises an exception if not.
         """
         if len(self._calls) != 0:
-            raise MockException("Function not called enough")
+            raise MockException("Still expecting more function calls")
+
+class MockFunction(object):
+
+    """
+    An object that mimics a function, checking the values passed in as
+    arguments, and returning a value or raising an exception.
+    """
+
+    def __init__(self, context, *args, **kwargs):
+        """
+        Creates a new MockFunction that is expecting to be called with
+        regular arguments args and keywords arguments kwargs.
+        """
+        self._context = context
+        self._context.add_call(self, *args, **kwargs)
+
+    def add_call(self, *args, **kwargs):
+        """
+        Adds another expected call to this function, expecting the
+        arguments and keyword argumentsgiven.
+
+        Returns this MockFunction so that a return value can be added
+        on.
+        """
+        self._context.add_call(self, *args, **kwargs)
+        return self
+
+    def returns(self, return_value):
+        """
+        Specifies the value to be returned.  Returns this MockFunction
+        object so that another call can be chained on.
+        """
+        self._context.set_last_return(self, return_value)
+        return self
+
+    def raises(self, exception):
+        """
+        Specifies an exception to be raised in response to the current
+        call.
+
+        Returns this MockFunction so another call can be chained on.
+        """
+        self._context.set_last_exception(self, exception)
+        return self
+
+    def __call__(self, *args, **kwargs):
+        return self._context.call(self, *args, **kwargs)
 
 class MockObject(object):
 
@@ -151,24 +175,21 @@ class TestCase(unittest.TestCase):
         Get ready to make mock objects.
         """
         super(TestCase, self).setUp()
-        self._functions = []
+        self._context = CallContext()
 
     def tearDown(self):
         """
         Make sure that all of the expected things happened.
         """
         super(TestCase, self).tearDown()
-        for f in self._functions:
-            f.check_done()
+        self._context.check_done()
 
     def mock_fcn(self, *args, **kwargs):
         """
         Make a new MockFunction.  It's check_done method will be
         called at the end of the test.
         """
-        f = MockFunction(*args, **kwargs)
-        self._functions.append(f)
-        return f
+        return MockFunction(self._context, *args, **kwargs)
 
     def mock_obj(self, **kwargs):
         """
@@ -176,12 +197,79 @@ class TestCase(unittest.TestCase):
         """
         return MockObject(**kwargs)
 
-    def patch(self, obj = None, field = None, value = None, triples = None):
+    def patch(self, obj, field, value):
         """
         Convenience method to make Patch objects.
         """
-        return Patch(obj, field, value, triples)
+        return Patch(obj, field, value)
 
+    def patch_set(self, *patch_tuples):
+        """
+        Convenience method to make PatchSet objects.
+        """
+        return PatchSet(*patch_tuples)
+
+class Patch(object):
+
+    """
+    A context for use in a with statement to temporarily replace a
+    member of a module or object with a new value.
+    """
+
+    def __init__(self, obj, field, value):
+        """
+        Creates a new context.  The named field of the module or
+        object will be replaced with the given value just for the
+        duration of the context.
+        """
+        self._object = obj
+        self._field = field
+        self._value = value
+
+    def __enter__(self):
+        self._prev_value = self._object.__dict__[self._field]
+        self._object.__dict__[self._field] = self._value
+
+    def __exit__(self, *args):
+        self._object.__dict__[self._field] = self._prev_value
+
+class PatchSet(object):
+
+    """
+    A context for use in a with statement to apply multiple Patches (see above)
+    at once.  Each patch is specified as a 3-tuple corresponding to the
+    arguments of Patch.
+    """
+
+    def __init__(self, *patch_tuples):
+        """
+        Creates a new context.  Each patch_tuple should be a 3-tuple
+        corresponding to the arguments of Patch.  For example:
+
+            with PatchSet(
+                    (time, 'sleep', sleep),
+                    (time, 'clock', clock)
+                    ):
+                run_with_patched_time()
+
+        is largely equivalent to:
+        
+            with Patch(time, 'sleep', sleep):
+                with Patch(time, 'clock', clock):
+                    run_with_patched_time()
+        """
+        def to_patch(patch_tuple):
+            return Patch(patch_tuple[0], patch_tuple[1], patch_tuple[2])
+        self._patches = map(to_patch, patch_tuples)
+
+    def __enter__(self):
+        for patch in self._patches:
+            patch.__enter__()
+
+    def __exit__(self, *args):
+        for patch in self._patches:
+            patch.__exit__(*args)
+        
 class Patch(object):
 
     """
@@ -281,7 +369,7 @@ class TestMock(TestCase):
     def test_function_not_called(self):
         f = self.mock_fcn()
         self.assertRaises(MockException, self.tearDown)
-        self._functions = []
+        self._context._calls = []
 
     def test_function_called_too_many_times(self):
         f = self.mock_fcn()
@@ -321,13 +409,31 @@ class TestMock(TestCase):
         with self.patch(time, 'duerme', self.mock_fcn(1).returns(2)):
             self.assertEquals(2, time.duerme(1))
 
-    def test_patch_multiple(self):
+    def test_patch_set(self):
         class Person():
             def __init__(self, name):
                 self.name = name
         p1 = Person('Joe')
         p2 = Person('Fred')
-        with self.patch(triples = [(p1, 'name', 'Sally'), (p2, 'age', 37)]):
+        with PatchSet(
+                (p1, 'name', 'Sally'),
+                (p2, 'age', 37)
+                ):
+            self.assertEquals(dict(name = 'Sally'), p1.__dict__)
+            self.assertEquals(dict(name = 'Fred', age = 37), p2.__dict__)
+        self.assertEquals(dict(name = 'Joe'), p1.__dict__)
+        self.assertEquals(dict(name = 'Fred'), p2.__dict__)
+
+    def test_patch_set_method(self):
+        class Person():
+            def __init__(self, name):
+                self.name = name
+        p1 = Person('Joe')
+        p2 = Person('Fred')
+        with self.patch_set(
+                (p1, 'name', 'Sally'),
+                (p2, 'age', 37)
+                ):
             self.assertEquals(dict(name = 'Sally'), p1.__dict__)
             self.assertEquals(dict(name = 'Fred', age = 37), p2.__dict__)
         self.assertEquals(dict(name = 'Joe'), p1.__dict__)
