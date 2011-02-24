@@ -74,13 +74,19 @@ class CallContext(object):
         if call.fcn != fcn:
             raise MockException("Function mismatch")
         if call.args != args:
-            print "Expected arguments:", call.args
-            print "Actual arguments:  ", args
-            raise MockException("Argument mismatch")
+            message = (
+                "Argument mismatch:\n" +
+                ("Expected arguments: %s\n" % str(call.args)) +
+                ("Actual arguments:   %s\n" % str(args))
+                )
+            raise MockException(message)
         if call.kwargs != kwargs:
-            print "Expected keyword arguments:", call.kwargs
-            print "Actual keyword arguments:  ", kwargs
-            raise MockException("Keyword argument mismatch")
+            message = (
+                "Argument mismatch:\n" +
+                ("Expected keyword arguments: %s\n" % str(call.kwargs)) +
+                ("Actual keyword arguments:   %s\n" % str(kwargs))
+                )
+            raise MockException(message)
         if call.exception is not None:
             raise call.exception
         else:
