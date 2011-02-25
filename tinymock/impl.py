@@ -2,7 +2,7 @@
 # 
 # File: impl.py
 # 
-# Copyright 2011 TiVo Inc. All Rights Reserved. by Brian Beach
+# Copyright 2011 by Brian Beach and Jaran Charumilind
 # 
 # This software is licensed under the MIT license.
 # 
@@ -28,7 +28,6 @@
 #
 ######################################################################
 
-import time
 import unittest
 
 class MockException(Exception):
@@ -416,6 +415,7 @@ class TestMock(TestCase):
         self.assertEquals(2, x.bar)
 
     def test_patch(self):
+        import time
         with Patch(
                 time,
                 'sleep',
@@ -424,6 +424,7 @@ class TestMock(TestCase):
             self.assertEquals(2, time.sleep(1))
 
     def test_patch_method(self):
+        import time
         with self.patch(
                 time,
                 'sleep',
@@ -432,6 +433,7 @@ class TestMock(TestCase):
             self.assertEquals(2, time.sleep(1))
 
     def test_patch_non_existant(self):
+        import time
         with self.patch(
                 time,
                 'duerme',
@@ -468,6 +470,19 @@ class TestMock(TestCase):
             self.assertEquals(dict(name = 'Fred', age = 37), p2.__dict__)
         self.assertEquals(dict(name = 'Joe'), p1.__dict__)
         self.assertEquals(dict(name = 'Fred'), p2.__dict__)
+
+    def test_sleeper(self):
+        import time
+        import os
+        sleep = self.mock_fcn("sleep").add_call(10)
+        getpid = self.mock_fcn("getpid").add_call().returns(1)
+        patches = self.patch_set(
+            (time, "sleep", sleep),
+            (os, "getpid", getpid)
+            )
+        with patches:
+            time.sleep(10)
+            self.assertEquals(1, os.getpid())
 
 if __name__ == '__main__':
     unittest.main()

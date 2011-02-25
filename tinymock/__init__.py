@@ -2,7 +2,7 @@
 # 
 # File: __init__.py
 # 
-# Copyright (c) 2011 by Brian Beach
+# Copyright (c) 2011 by Brian Beach and Jaran Charumilind
 # 
 # This software is licensed under the MIT license.
 # 
@@ -112,8 +112,8 @@ If you have multiple calls to patch, you can use a PatchSet::
 
     class TestIt(tinymock.TestCase):
         def test_sleeper(self):
-            getpid = self.mock_fcn("getpid").add_call().returns(1)
             sleep = self.mock_fcn("sleep").add_call(10)
+            getpid = self.mock_fcn("getpid").add_call().returns(1)
             with self.patch_set(
                     (time, "sleep", sleep),
                     (os, "getpid", getpid)
