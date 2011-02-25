@@ -419,7 +419,7 @@ class TestMock(TestCase):
         with Patch(
                 time,
                 'sleep',
-                self.mock_fcn('f').add_call(1).returns(2)
+                self.mock_fcn('sleep').add_call(1).returns(2)
                 ):
             self.assertEquals(2, time.sleep(1))
 
@@ -427,7 +427,7 @@ class TestMock(TestCase):
         with self.patch(
                 time,
                 'sleep',
-                self.mock_fcn('f').add_call(1).returns(2)
+                self.mock_fcn('sleep').add_call(1).returns(2)
                 ):
             self.assertEquals(2, time.sleep(1))
 
@@ -435,7 +435,7 @@ class TestMock(TestCase):
         with self.patch(
                 time,
                 'duerme',
-                self.mock_fcn('f').add_call(1).returns(2)
+                self.mock_fcn('duerme').add_call(1).returns(2)
                 ):
             self.assertEquals(2, time.duerme(1))
 
