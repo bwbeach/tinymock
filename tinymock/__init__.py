@@ -45,31 +45,33 @@ calling a mock function that expects a single argument whose value is
 
     class TestIt(tinymock.TestCase):
         def test_call_function(self):
-            fcn = self.mock_fcn(1)
+            fcn = self.mock_fcn("fcn").add_call(1)
             fcn(1)
 
 The mock_fcn method in tinymock.TestCase creates a new mock function,
-and takes as arguments the values that you are expecting the function
-to be called with.  In the case above, the mock fuction is expecting a
-1 to be passed in.
+and takes as arguments the name of the function.  The add_call tells
+the mock function to expect a call with the values that you are
+expecting the function to be called with.  In the case above, the mock
+fuction is expecting a 1 to be passed in.
 
 A return value can be specified by calling the returns method on the
-newly created MockFunction object.  Here is an example that calls a
+MockFunction object after a call.  Here is an example that calls a
 function that returns 2::
 
     class TestIt(tinymock.TestCase):
         def test_function_return(self):
-            fcn = self.mock_fcn().returns(2)
+            fcn = self.mock_fcn('fcn').add_call().returns(2)
             self.assertEquals(2, fcn())
 
-By default, a MockFunction expects to be called just once.  You can
-use the add_call method.  Here is a test case that directly calls a
-mock function three times, each time with different arguments and a
-different return value::
+Upon creation, a MockFunction does not expect any calls.  You use the
+add_call method for each time you expect the method to be called.
+Here is a test case that directly calls a mock function three times,
+each time with different arguments and a different return value::
 
     class TestIt(tinymock.TestCase):
         def test_calls(self):
-            fcn = (self.mock_fcn().returns(1)
+            fcn = (self.mock_fcn("fcn")
+                   .add_call().returns(1)
                    .add_call("a").returns(2)
                    .add_call("b", "c").returns(3))
             self.assertEquals(1, fcn())
@@ -77,7 +79,7 @@ different return value::
             self.assertEquals(3, fcn("b", "c"))
                      
 Making mock objects is straightforward.  The MockObject class is
-simply an container for the members of the object, which can be set
+simply a container for the members of the object, which can be set
 manually, or by passing in keyword arguments to the constructor.  The
 mock_obj method in tinymock.TestCase creates new mock objects.
 
@@ -88,7 +90,7 @@ method b that returns 2::
         def test_object(self):
             obj = self.mock_obj(
                 a = 1,
-                b = self.mock_fcn().returns(2)
+                b = self.mock_fcn("obj.b").add_call().returns(2)
                 )
             self.assertEquals(1, obj.a)
             self.assertEquals(2, obj.b())
@@ -102,8 +104,21 @@ can verfy that sleep was called, without having to wait::
 
     class TestIt(tinymock.TestCase):
         def test_sleeper(self):
-            with Patch(time, 'sleep', self.mock_fcn(10)):
+            sleep = self.mock_fcn("sleep").add_call(10)
+            with self.patch(time, "sleep", sleep)
                 function_that_should_sleep_10_seconds()
+
+If you have multiple calls to patch, you can use a PatchSet::
+
+    class TestIt(tinymock.TestCase):
+        def test_sleeper(self):
+            getpid = self.mock_fcn("getpid").add_call().returns(1)
+            sleep = self.mock_fcn("sleep").add_call(10)
+            with self.patch_set(
+                    (time, "sleep", sleep),
+                    (os, "getpid", getpid)
+                    ):
+                function_that_should_sleep_10_seconds_and_getpid()
 """
 
 from .impl import TestCase, MockFunction, MockObject, Patch

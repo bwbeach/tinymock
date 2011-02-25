@@ -58,31 +58,32 @@ class CallContext(object):
         self._calls.append(ExpectedCall(fcn, args, kwargs))
 
     def set_last_return(self, fcn, return_value):
-        if fcn != self._calls[-1].fcn:
-            raise Exception("return values must be set for the last call")
+        self._check_last_call(fcn, "return value")
         self._calls[-1].return_value = return_value
 
-    def set_last_exception(self, fcn, return_value):
-        if fcn != self._calls[-1].fcn:
-            raise Exception("exceptions must be set for the last call")
-        self._calls[-1].return_value = return_value
+    def set_last_exception(self, fcn, exception):
+        self._check_last_call(fcn, "exception")
+        self._calls[-1].exception = exception
 
     def call(self, fcn, *args, **kwargs):
         if len(self._calls) == 0:
-            raise MockException("Unexpected call")
+            raise MockException("Unexpected call of '%s'" % fcn.name)
         call = self._calls.pop(0)
         if call.fcn != fcn:
-            raise MockException("Function mismatch")
+            raise MockException(
+                    "Unexpected call of '%s'; expected '%s'" %
+                    (fcn.name, call.fcn.name)
+                    )
         if call.args != args:
             message = (
-                "Argument mismatch:\n" +
+                ("Argument mismatch for '%s':\n" % fcn.name) +
                 ("Expected arguments: %s\n" % str(call.args)) +
                 ("Actual arguments:   %s\n" % str(args))
                 )
             raise MockException(message)
         if call.kwargs != kwargs:
             message = (
-                "Argument mismatch:\n" +
+                ("Argument mismatch for '%s':\n" % fcn.name) +
                 ("Expected keyword arguments: %s\n" % str(call.kwargs)) +
                 ("Actual keyword arguments:   %s\n" % str(kwargs))
                 )
@@ -100,6 +101,12 @@ class CallContext(object):
         if len(self._calls) != 0:
             raise MockException("Still expecting more function calls")
 
+    def _check_last_call(self, fcn, reason):
+        if len(self._calls) == 0:
+            raise Exception("no call for which to set " + reason)
+        if fcn != self._calls[-1].fcn:
+            raise Exception(reason + " must be set immediately after add_call")
+
 class MockFunction(object):
 
     """
@@ -107,13 +114,12 @@ class MockFunction(object):
     arguments, and returning a value or raising an exception.
     """
 
-    def __init__(self, context, *args, **kwargs):
+    def __init__(self, context, name):
         """
-        Creates a new MockFunction that is expecting to be called with
-        regular arguments args and keywords arguments kwargs.
+        Creates a new MockFunction with the given name.
         """
         self._context = context
-        self._context.add_call(self, *args, **kwargs)
+        self.name = name
 
     def add_call(self, *args, **kwargs):
         """
@@ -190,12 +196,12 @@ class TestCase(unittest.TestCase):
         super(TestCase, self).tearDown()
         self._context.check_done()
 
-    def mock_fcn(self, *args, **kwargs):
+    def mock_fcn(self, name):
         """
         Make a new MockFunction.  It's check_done method will be
         called at the end of the test.
         """
-        return MockFunction(self._context, *args, **kwargs)
+        return MockFunction(self._context, name)
 
     def mock_obj(self, **kwargs):
         """
@@ -353,66 +359,84 @@ class Patch(object):
 class TestMock(TestCase):
 
     def test_function_return_value(self):
-        f = self.mock_fcn().returns(2)
+        f = self.mock_fcn('f').add_call().returns(2)
         self.assertEquals(2, f())
 
+    def test_function_raises(self):
+        f = self.mock_fcn('f').add_call(2).raises(Exception('kaboom'))
+        def should_raise():
+            f(2)
+        self.assertRaises(Exception, should_raise)
+
     def test_function_arg_mismatch(self):
-        f = self.mock_fcn(1)
+        f = self.mock_fcn('f').add_call(1)
         def should_raise():
             f(2)
         self.assertRaises(MockException, should_raise)
 
     def test_function_keyword(self):
-        f = self.mock_fcn(a = 5)
+        f = self.mock_fcn('f').add_call(a = 5)
         f(a = 5)
 
     def test_function_extra_keyword(self):
-        f = self.mock_fcn()
+        f = self.mock_fcn('f').add_call()
         def should_raise():
             f(a = 5)
         self.assertRaises(MockException, should_raise)
 
     def test_function_not_called(self):
-        f = self.mock_fcn()
+        f = self.mock_fcn('f').add_call()
         self.assertRaises(MockException, self.tearDown)
         self._context._calls = []
 
     def test_function_called_too_many_times(self):
-        f = self.mock_fcn()
+        f = self.mock_fcn('f').add_call()
         f()
         def should_raise():
             f()
         self.assertRaises(MockException, should_raise)
     
     def test_function_called_twice(self):
-        f = self.mock_fcn().returns(1)
+        f = self.mock_fcn('f').add_call().returns(1)
         f.add_call().returns(2)
         self.assertEqual(1, f())
         self.assertEqual(2, f())
 
     def test_mock_object(self):
         x = self.mock_obj()
-        x.foo = self.mock_fcn().returns(1)
+        x.foo = self.mock_fcn('f').add_call().returns(1)
         self.assertEquals(1, x.foo())
     
     def test_mock_object_with_kw_args(self):
         x = self.mock_obj(
-            foo = self.mock_fcn().returns(1),
+            foo = self.mock_fcn('f').add_call().returns(1),
             bar = 2
             )
         self.assertEquals(1, x.foo())
         self.assertEquals(2, x.bar)
 
     def test_patch(self):
-        with Patch(time, 'sleep', self.mock_fcn(1).returns(2)):
+        with Patch(
+                time,
+                'sleep',
+                self.mock_fcn('f').add_call(1).returns(2)
+                ):
             self.assertEquals(2, time.sleep(1))
 
     def test_patch_method(self):
-        with self.patch(time, 'sleep', self.mock_fcn(1).returns(2)):
+        with self.patch(
+                time,
+                'sleep',
+                self.mock_fcn('f').add_call(1).returns(2)
+                ):
             self.assertEquals(2, time.sleep(1))
 
     def test_patch_non_existant(self):
-        with self.patch(time, 'duerme', self.mock_fcn(1).returns(2)):
+        with self.patch(
+                time,
+                'duerme',
+                self.mock_fcn('f').add_call(1).returns(2)
+                ):
             self.assertEquals(2, time.duerme(1))
 
     def test_patch_set(self):
