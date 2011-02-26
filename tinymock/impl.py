@@ -239,11 +239,14 @@ class Patch(object):
         self._value = value
 
     def __enter__(self):
-        self._prev_value = self._object.__dict__[self._field]
+        self._prev_value = self._object.__dict__.get(self._field)
         self._object.__dict__[self._field] = self._value
 
     def __exit__(self, *args):
-        self._object.__dict__[self._field] = self._prev_value
+        if self._prev_value is None:
+            del self._object.__dict__[self._field]
+        else:
+            self._object.__dict__[self._field] = self._prev_val
 
 class PatchSet(object):
 
@@ -270,9 +273,10 @@ class PatchSet(object):
                 with Patch(time, 'clock', clock):
                     run_with_patched_time()
         """
-        def to_patch(patch_tuple):
-            return Patch(patch_tuple[0], patch_tuple[1], patch_tuple[2])
-        self._patches = map(to_patch, patch_tuples)
+        self._patches = [
+                Patch(patch_tuple[0], patch_tuple[1], patch_tuple[2])
+                for patch_tuple in patch_tuples
+                ]
 
     def __enter__(self):
         for patch in self._patches:
@@ -431,7 +435,7 @@ class TestMock(TestCase):
                 ):
             self.assertEquals(2, time.sleep(1))
 
-    def test_patch_non_existant(self):
+    def test_patch_non_existent(self):
         with self.patch(
                 time,
                 'duerme',
