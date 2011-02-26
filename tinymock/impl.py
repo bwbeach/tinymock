@@ -246,7 +246,7 @@ class Patch(object):
         if self._prev_value is None:
             del self._object.__dict__[self._field]
         else:
-            self._object.__dict__[self._field] = self._prev_val
+            self._object.__dict__[self._field] = self._prev_value
 
 class PatchSet(object):
 
@@ -285,80 +285,6 @@ class PatchSet(object):
     def __exit__(self, *args):
         for patch in self._patches:
             patch.__exit__(*args)
-        
-class Patch(object):
-
-    """
-    A context for use in a with statement to temporarily replace a
-    member of a module or object with a new value.
-    """
-
-    def __init__(self, obj = None, field = None, value = None, triples = None):
-        """
-        Creates a new context.  The named field of the module or
-        object will be replaced with the given value just for the
-        duration of the context.
-
-        Each patch requires three things: (1) the object to patch, (2)
-        a string that is the name of the field to patch, and (3) the
-        value to put in that field.
-
-        This constructor can be called in two different ways.  You can
-        pass in three arguments that are the object, field, and value::
-
-            Patch(my_object, 'name', 'Fred')
-
-        Or, you can call it with a list of patches to make, using the
-        'triples' keyword argument:
-
-            triples = [
-                (my_object, name, 'Fred'),
-                (my_object, age, 37),
-                (my_other_object, name, 'Joe')
-                ]
-            Patch(triples = patches)
-
-        The value of None is special; it means that the field of the
-        object should be removed.
-        """
-        if triples is not None:
-            if (obj is not None) or (field is not None) or (value is not None):
-                raise ValueError(
-                    "Do not pass in an object, field, or value " +
-                    "when using the keyword 'triples'"
-                    )
-            self._triples = triples
-        else:
-            self._triples = [(obj, field, value)]
-
-    def __enter__(self):
-        self.swap()
-
-    def __exit__(self, *args):
-        self.swap()
-
-    def swap(self):
-        """
-        Swap the values in self._triples with the values out in the
-        wild.
-        """
-        self._triples = [
-            (obj, field, self.swap_value(obj, field, value))
-            for (obj, field, value) in self._triples
-            ]
-
-    def swap_value(self, obj, field, value):
-        """
-        Stores the given value in the object and returns the old
-        value.
-        """
-        old_value = obj.__dict__.get(field)
-        if value is None:
-            if old_value is not None:
-                del obj.__dict__[field]
-        else:
-            obj.__dict__[field] = value
-        return old_value
         
 class TestMock(TestCase):
 
