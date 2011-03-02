@@ -195,8 +195,8 @@ def builtin_wrapper(method_name):
     def wrapper(self, *args, **kwargs):
         if method_name not in self.__dict__:
             raise AttributeError(
-                "object has %s no mock method '%s'" %
-                (self._mock_object_name, method_name)
+                "object '%s' has no mock method '%s'" %
+                (mock_object_names.get(id(self)), method_name)
                 )
         return self.__dict__[method_name](*args, **kwargs)
     return wrapper
@@ -214,6 +214,8 @@ def add_builtin_proxies(name, bases, dict):
         method_name = "__%s__" % abbreviated_name
         dict[method_name] = builtin_wrapper(method_name)
     return type(name, bases, dict)
+
+mock_object_names = {} # mapping from ID to name
 
 class MockObject(object):
 
@@ -233,9 +235,13 @@ class MockObject(object):
         keyword arguments passed in.
         """
         
-        self._mock_obect_name = name
+        mock_object_names[id(self)] = name
         for (key, value) in kwargs.items():
             self.__dict__[key] = value
+
+    def __del__(self):
+        print "removing", id(self)
+        del mock_object_names[id(self)]
 
 class TestCase(unittest.TestCase):
 
@@ -494,6 +500,13 @@ class TestMock(TestCase):
         with patches:
             time.sleep(10)
             self.assertEquals(1, os.getpid())
+
+    def test_no_such_method(self):
+        x = self.mock_obj('x')
+        x.foo
+        def should_raise():
+            x.foo()
+        self.assertRaises(MockException, should_raise)
 
 if __name__ == '__main__':
     unittest.main()
