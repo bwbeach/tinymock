@@ -31,10 +31,19 @@
 import unittest
 
 class MockException(Exception):
+
+    """
+    Exception class raised when errors are detected in mock functions.
+    """
+    
     pass
 
 class ExpectedCall(object):
 
+    """
+    Container object holding the information about one expected call.
+    """
+    
     def __init__(self, fcn, args, kwargs):
         self.fcn = fcn
         self.args = args
@@ -53,7 +62,7 @@ class CallContext(object):
     def __init__(self):
         self._calls = []
 
-    def add_call(self, fcn, *args, **kwargs):
+    def expect(self, fcn, *args, **kwargs):
         self._calls.append(ExpectedCall(fcn, args, kwargs))
 
     def set_last_return(self, fcn, return_value):
@@ -104,7 +113,7 @@ class CallContext(object):
         if len(self._calls) == 0:
             raise Exception("no call for which to set " + reason)
         if fcn != self._calls[-1].fcn:
-            raise Exception(reason + " must be set immediately after add_call")
+            raise Exception(reason + " must be set immediately after expect")
 
 class MockFunction(object):
 
@@ -120,7 +129,7 @@ class MockFunction(object):
         self._context = context
         self.name = name
 
-    def add_call(self, *args, **kwargs):
+    def expect(self, *args, **kwargs):
         """
         Adds another expected call to this function, expecting the
         arguments and keyword argumentsgiven.
@@ -128,7 +137,7 @@ class MockFunction(object):
         Returns this MockFunction so that a return value can be added
         on.
         """
-        self._context.add_call(self, *args, **kwargs)
+        self._context.expect(self, *args, **kwargs)
         return self
 
     def returns(self, return_value):
@@ -161,11 +170,14 @@ class MockObject(object):
     just a container for whatever attributes you assign to it.
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, name, **kwargs):
+        
         """
         Creates a new mock object with the attributes specified by the
         keyword arguments passed in.
         """
+        
+        self._mock_obect_name = name
         for (key, value) in kwargs.items():
             self.__dict__[key] = value
 
@@ -202,11 +214,11 @@ class TestCase(unittest.TestCase):
         """
         return MockFunction(self._context, name)
 
-    def mock_obj(self, **kwargs):
+    def mock_obj(self, name, **kwargs):
         """
         Make a new MockObject.
         """
-        return MockObject(**kwargs)
+        return MockObject(name, **kwargs)
 
     def patch(self, obj, field, value):
         """
@@ -288,57 +300,58 @@ class PatchSet(object):
 class TestMock(TestCase):
 
     def test_function_return_value(self):
-        f = self.mock_fcn('f').add_call().returns(2)
+        f = self.mock_fcn('f').expect().returns(2)
         self.assertEquals(2, f())
 
     def test_function_raises(self):
-        f = self.mock_fcn('f').add_call(2).raises(Exception('kaboom'))
+        f = self.mock_fcn('f').expect(2).raises(OSError('kaboom'))
         def should_raise():
             f(2)
-        self.assertRaises(Exception, should_raise)
+        self.assertRaises(OSError, should_raise)
 
     def test_function_arg_mismatch(self):
-        f = self.mock_fcn('f').add_call(1)
+        f = self.mock_fcn('f').expect(1)
         def should_raise():
             f(2)
         self.assertRaises(MockException, should_raise)
 
     def test_function_keyword(self):
-        f = self.mock_fcn('f').add_call(a = 5)
+        f = self.mock_fcn('f').expect(a = 5)
         f(a = 5)
 
     def test_function_extra_keyword(self):
-        f = self.mock_fcn('f').add_call()
+        f = self.mock_fcn('f').expect()
         def should_raise():
             f(a = 5)
         self.assertRaises(MockException, should_raise)
 
     def test_function_not_called(self):
-        f = self.mock_fcn('f').add_call()
+        f = self.mock_fcn('f').expect()
         self.assertRaises(MockException, self.tearDown)
         self._context._calls = []
 
     def test_function_called_too_many_times(self):
-        f = self.mock_fcn('f').add_call()
+        f = self.mock_fcn('f').expect()
         f()
         def should_raise():
             f()
         self.assertRaises(MockException, should_raise)
     
     def test_function_called_twice(self):
-        f = self.mock_fcn('f').add_call().returns(1)
-        f.add_call().returns(2)
+        f = self.mock_fcn('f').expect().returns(1)
+        f.expect().returns(2)
         self.assertEqual(1, f())
         self.assertEqual(2, f())
 
     def test_mock_object(self):
-        x = self.mock_obj()
-        x.foo = self.mock_fcn('f').add_call().returns(1)
+        x = self.mock_obj('x')
+        x.foo = self.mock_fcn('f').expect().returns(1)
         self.assertEquals(1, x.foo())
     
     def test_mock_object_with_kw_args(self):
         x = self.mock_obj(
-            foo = self.mock_fcn('f').add_call().returns(1),
+            'x',
+            foo = self.mock_fcn('f').expect().returns(1),
             bar = 2
             )
         self.assertEquals(1, x.foo())
@@ -349,7 +362,7 @@ class TestMock(TestCase):
         with Patch(
                 time,
                 'sleep',
-                self.mock_fcn('sleep').add_call(1).returns(2)
+                self.mock_fcn('sleep').expect(1).returns(2)
                 ):
             self.assertEquals(2, time.sleep(1))
 
@@ -358,7 +371,7 @@ class TestMock(TestCase):
         with self.patch(
                 time,
                 'sleep',
-                self.mock_fcn('sleep').add_call(1).returns(2)
+                self.mock_fcn('sleep').expect(1).returns(2)
                 ):
             self.assertEquals(2, time.sleep(1))
 
@@ -367,7 +380,7 @@ class TestMock(TestCase):
         with self.patch(
                 time,
                 'duerme',
-                self.mock_fcn('duerme').add_call(1).returns(2)
+                self.mock_fcn('duerme').expect(1).returns(2)
                 ):
             self.assertEquals(2, time.duerme(1))
 
@@ -404,8 +417,8 @@ class TestMock(TestCase):
     def test_sleeper(self):
         import time
         import os
-        sleep = self.mock_fcn("sleep").add_call(10)
-        getpid = self.mock_fcn("getpid").add_call().returns(1)
+        sleep = self.mock_fcn("sleep").expect(10)
+        getpid = self.mock_fcn("getpid").expect().returns(1)
         patches = self.patch_set(
             (time, "sleep", sleep),
             (os, "getpid", getpid)

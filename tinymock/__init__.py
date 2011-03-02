@@ -2,7 +2,7 @@
 # 
 # File: __init__.py
 # 
-# Copyright (c) 2011 by Brian Beach and Jaran Charumilind
+# Copyright 2011 TiVo Inc. All Rights Reserved. by Brian Beach and Jaran Charumilind
 # 
 # This software is licensed under the MIT license.
 # 
@@ -45,35 +45,35 @@ calling a mock function that expects a single argument whose value is
 
     class TestIt(tinymock.TestCase):
         def test_call_function(self):
-            fcn = self.mock_fcn("fcn").add_call(1)
+            fcn = self.mock_fcn("fcn").expect(1)
             fcn(1)
 
 The mock_fcn method in tinymock.TestCase creates a new mock function,
-and takes as arguments the name of the function.  The add_call tells
-the mock function to expect a call with the values that you are
+and takes as its argument the name of the function.  The expect
+tells the mock function to expect a call with the values that you are
 expecting the function to be called with.  In the case above, the mock
 fuction is expecting a 1 to be passed in.
 
 A return value can be specified by calling the returns method on the
-MockFunction object after a call.  Here is an example that calls a
-function that returns 2::
+mock function object after a call.  Here is an example that calls a
+function that expects no arguments and returns 2::
 
     class TestIt(tinymock.TestCase):
         def test_function_return(self):
-            fcn = self.mock_fcn('fcn').add_call().returns(2)
+            fcn = self.mock_fcn('fcn').expect().returns(2)
             self.assertEquals(2, fcn())
 
 Upon creation, a MockFunction does not expect any calls.  You use the
-add_call method for each time you expect the method to be called.
+expect method for each time you expect the method to be called.
 Here is a test case that directly calls a mock function three times,
 each time with different arguments and a different return value::
 
     class TestIt(tinymock.TestCase):
         def test_calls(self):
-            fcn = (self.mock_fcn("fcn")
-                   .add_call().returns(1)
-                   .add_call("a").returns(2)
-                   .add_call("b", "c").returns(3))
+            fcn = self.mock_fcn("fcn")
+            fcn..expect().returns(1)
+            fcn.expect("a").returns(2)
+            fcn.expect("b", "c").returns(3))
             self.assertEquals(1, fcn())
             self.assertEquals(2, fcn("a"))
             self.assertEquals(3, fcn("b", "c"))
@@ -89,22 +89,23 @@ method b that returns 2::
     class TestIt(tinymock.TestCase):
         def test_object(self):
             obj = self.mock_obj(
+                "my_object",
                 a = 1,
-                b = self.mock_fcn("obj.b").add_call().returns(2)
+                b = self.mock_fcn("obj.b").expect().returns(2)
                 )
             self.assertEquals(1, obj.a)
             self.assertEquals(2, obj.b())
 
-The Patch class can be used to replace a field in another module or
-object for the duration of a test.  A Patch object is used as the
-context for a with statement to make the replacement, and then to
+A patch can be used to replace a field in another module or object for
+the duration of a test.  The patch method returns an object used as
+the context for a with statement to make the replacement, and then to
 restore things when the with statement is done.  In this example, the
 sleep function is replaced with a mock function.  This way the test
 can verfy that sleep was called, without having to wait::
 
     class TestIt(tinymock.TestCase):
         def test_sleeper(self):
-            sleep = self.mock_fcn("sleep").add_call(10)
+            sleep = self.mock_fcn("sleep").expect(10)
             with self.patch(time, "sleep", sleep)
                 function_that_should_sleep_10_seconds()
 
@@ -112,13 +113,16 @@ If you have multiple calls to patch, you can use a PatchSet::
 
     class TestIt(tinymock.TestCase):
         def test_sleeper(self):
-            sleep = self.mock_fcn("sleep").add_call(10)
-            getpid = self.mock_fcn("getpid").add_call().returns(1)
-            with self.patch_set(
-                    (time, "sleep", sleep),
-                    (os, "getpid", getpid)
-                    ):
+            sleep = self.mock_fcn("sleep")
+            getpid = self.mock_fcn("getpid")
+            sleep.expect(10)
+            getpid.expect().returns(1)
+            patch_set = self.patch_set(
+                (time, "sleep", sleep),
+                (os, "getpid", getpid)
+                )
+            with patch_set:
                 function_that_should_sleep_10_seconds_and_getpid()
 """
 
-from .impl import TestCase, MockFunction, MockObject, Patch
+from .impl import TestCase
