@@ -179,7 +179,7 @@ class MockFunction(object):
 BUILTINS = """
     abs add and call cmp coerce complex contains delattr delete
     delitem delslice div divmod enter eq exit float floordiv ge get
-    getattr getitem getslice gt hash hex iadd iand idiv ifloordiv
+    getitem getslice gt hash hex iadd iand idiv ifloordiv
     ilshift imod imul index int invert ior ipow isub iter itruediv
     ixor le len long lshift lt mod mul ne neg nonzero oct or pos pow
     radd rand rdiv rdivmod repr reversed rfloordiv rlshift rmod rmul
@@ -241,6 +241,16 @@ class MockObject(object):
 
     def __del__(self):
         del mock_object_names[id(self)]
+
+    def __getattr__(self, name):
+        """
+        This method is called when an attribute is requested but is
+        not present.
+        """
+        raise MockException(
+            "Mock object %s has no attribute '%s'" %
+            (mock_object_names[id(self)], name)
+            )
 
 class TestCase(unittest.TestCase):
 
@@ -500,9 +510,14 @@ class TestMock(TestCase):
             time.sleep(10)
             self.assertEquals(1, os.getpid())
 
+    def test_no_such_attr(self):
+        x = self.mock_obj('x')
+        def should_raise():
+            x.foo
+        self.assertRaises(MockException, should_raise)
+
     def test_no_such_method(self):
         x = self.mock_obj('x')
-        x.foo
         def should_raise():
             x.foo()
         self.assertRaises(MockException, should_raise)
