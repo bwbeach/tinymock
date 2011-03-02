@@ -194,7 +194,10 @@ def builtin_wrapper(method_name):
     """
     def wrapper(self, *args, **kwargs):
         if method_name not in self.__dict__:
-            raise AttributeError("object has no mock method '%s'" % method_name)
+            raise AttributeError(
+                "object has %s no mock method '%s'" %
+                (self._mock_object_name, method_name)
+                )
         return self.__dict__[method_name](*args, **kwargs)
     return wrapper
         
