@@ -91,10 +91,25 @@ method b that returns 2::
             obj = self.mock_obj(
                 "my_object",
                 a = 1,
-                b = self.mock_fcn("obj.b").expect().returns(2)
+                b = self.mock_fcn("obj.b")
                 )
+            obj.b.expect().returns(2)
             self.assertEquals(1, obj.a)
             self.assertEquals(2, obj.b())
+
+Mock objects support mocking almost all built-in methods.  The methods
+that are not supported are: __init__, __new__, __del__, __setattr__,
+and __getattribute__.  For the rest, you can treat them just like
+normal functions::
+
+    class TestIt(tinymock.TestCase):
+        def test_add(self):
+            obj = self.mock_obj(
+                "my_object",
+                __add__ = self.mock_fcn('__add__')
+                )
+            obj.__add__.expect(1).returns(3)
+            self.assertEquals(3, obj + 1)
 
 A patch can be used to replace a field in another module or object for
 the duration of a test.  The patch method returns an object used as

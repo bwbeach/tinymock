@@ -161,6 +161,57 @@ class MockFunction(object):
     def __call__(self, *args, **kwargs):
         return self._context.call(self, *args, **kwargs)
 
+#
+# These are all of the builtin methods that can be mocked.
+#
+# __new__, __init__ are not listed because it is assumed that the mock
+# object already exists before the function under test is called.
+#
+# __del__ is not listed because it's hard to predict when an object
+# will be garbage collected.
+#
+# __setattr__ is not listed because it's needed for setting up the
+# mock object.
+#
+# __getattribute__ is not listed because it makes my head hurt.
+#
+
+BUILTINS = """
+    abs add and call cmp coerce complex contains delattr delete
+    delitem delslice div divmod enter eq exit float floordiv ge get
+    getattr getitem getslice gt hash hex iadd iand idiv ifloordiv
+    ilshift imod imul index int invert ior ipow isub iter itruediv
+    ixor le len long lshift lt mod mul ne neg nonzero oct or pos pow
+    radd rand rdiv rdivmod repr reversed rfloordiv rlshift rmod rmul
+    ror rpow rrshift rshift rsub rtruediv rxor set setitem
+    setslice str sub truediv unicode xor
+    """
+
+def builtin_wrapper(method_name):
+    """
+    Makes a new function object that implements the given method by
+    delegating to a mock method defined on the object.
+    """
+    def wrapper(self, *args, **kwargs):
+        if method_name not in self.__dict__:
+            raise AttributeError("object has no mock method '%s'" % method_name)
+        return self.__dict__[method_name](*args, **kwargs)
+    return wrapper
+        
+
+def add_builtin_proxies(name, bases, dict):
+    """
+    Metaclass that adds implements all builtin methods by delegating
+    to mock methods on the instance.
+
+    This is necessary because for some builting methods, Python
+    doesn't look for them in the instance, only in the class.
+    """
+    for abbreviated_name in BUILTINS.split():
+        method_name = "__%s__" % abbreviated_name
+        dict[method_name] = builtin_wrapper(method_name)
+    return type(name, bases, dict)
+
 class MockObject(object):
 
     """
@@ -169,6 +220,8 @@ class MockObject(object):
     This class has no methods (other than the constructor).  It is
     just a container for whatever attributes you assign to it.
     """
+
+    __metaclass__ = add_builtin_proxies
 
     def __init__(self, name, **kwargs):
         
@@ -357,13 +410,25 @@ class TestMock(TestCase):
         self.assertEquals(1, x.foo())
         self.assertEquals(2, x.bar)
 
+    def test_mock_object_builtin_methods(self):
+        x = self.mock_obj(
+            'x',
+            __hash__ = self.mock_fcn('__hash__'),
+            __getitem__ = self.mock_fcn('__getitem__'),
+            __add__ = self.mock_fcn('__add__')
+            )
+        x.__hash__.expect().returns(1)
+        x.__getitem__.expect(1).returns(2)
+        x.__add__.expect(1).returns(3)
+        self.assertEquals(1, hash(x))
+        self.assertEquals(2, x[1])
+        self.assertEquals(3, x + 1)
+
     def test_patch(self):
         import time
-        with Patch(
-                time,
-                'sleep',
-                self.mock_fcn('sleep').expect(1).returns(2)
-                ):
+        _sleep = self.mock_fcn('sleep')
+        _sleep.expect(1).returns(2)
+        with self.patch(time, 'sleep', _sleep):
             self.assertEquals(2, time.sleep(1))
 
     def test_patch_method(self):
