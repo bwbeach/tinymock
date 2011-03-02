@@ -99,8 +99,8 @@ method b that returns 2::
 
 Mock objects support mocking almost all built-in methods.  The methods
 that are not supported are: __init__, __new__, __del__, __setattr__,
-and __getattribute__.  For the rest, you can treat them just like
-normal functions::
+__getattr__, and __getattribute__.  For the rest, you can treat them
+just like normal functions::
 
     class TestIt(tinymock.TestCase):
         def test_add(self):
