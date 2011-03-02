@@ -237,7 +237,7 @@ class MockObject(object):
         
         mock_object_names[id(self)] = name
         for method in methods:
-            self.__dict__[method] = MockFunction(context, name)
+            self.__dict__[method] = MockFunction(context, method)
         for (key, value) in kwargs.items():
             self.__dict__[key] = value
 
