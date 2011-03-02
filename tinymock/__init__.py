@@ -111,6 +111,17 @@ just like normal functions::
             obj.__add__.expect(1).returns(3)
             self.assertEquals(3, obj + 1)
 
+Because the pattern above is very common pattern, there's a shorter
+way of saying it.  The mock_obj method takes an optional parameter
+that is a list of methods to define, so the test above can be written
+like this:
+
+    class TestIt(tinymock.TestCase):
+        def test_add(self):
+            obj = self.mock_obj('my_object', ['__add__'])
+            obj.__add__.expect(1).returns(3)
+            self.assertEquals(3, obj + 1)
+
 A patch can be used to replace a field in another module or object for
 the duration of a test.  The patch method returns an object used as
 the context for a with statement to make the replacement, and then to

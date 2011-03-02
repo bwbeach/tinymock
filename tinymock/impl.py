@@ -228,7 +228,7 @@ class MockObject(object):
 
     __metaclass__ = add_builtin_proxies
 
-    def __init__(self, name, **kwargs):
+    def __init__(self, context, name, methods, **kwargs):
         
         """
         Creates a new mock object with the attributes specified by the
@@ -236,6 +236,8 @@ class MockObject(object):
         """
         
         mock_object_names[id(self)] = name
+        for method in methods:
+            self.__dict__[method] = MockFunction(context, name)
         for (key, value) in kwargs.items():
             self.__dict__[key] = value
 
@@ -285,11 +287,11 @@ class TestCase(unittest.TestCase):
         """
         return MockFunction(self._context, name)
 
-    def mock_obj(self, name, **kwargs):
+    def mock_obj(self, name, methods = [], **kwargs):
         """
         Make a new MockObject.
         """
-        return MockObject(name, **kwargs)
+        return MockObject(self._context, name, methods, **kwargs)
 
     def patch(self, obj, field, value):
         """
@@ -415,8 +417,8 @@ class TestMock(TestCase):
         self.assertEqual(2, f())
 
     def test_mock_object(self):
-        x = self.mock_obj('x')
-        x.foo = self.mock_fcn('f').expect().returns(1)
+        x = self.mock_obj('x', ['foo'])
+        x.foo.expect().returns(1)
         self.assertEquals(1, x.foo())
     
     def test_mock_object_with_kw_args(self):
