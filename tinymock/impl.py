@@ -240,7 +240,6 @@ class MockObject(object):
             self.__dict__[key] = value
 
     def __del__(self):
-        print "removing", id(self)
         del mock_object_names[id(self)]
 
 class TestCase(unittest.TestCase):
