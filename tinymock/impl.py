@@ -323,14 +323,14 @@ class Patch(object):
         self._value = value
 
     def __enter__(self):
-        self._prev_value = self._object.__dict__.get(self._field)
-        self._object.__dict__[self._field] = self._value
+        self._prev_value = getattr(self._object, self._field, None)
+        setattr(self._object, self._field, self._value)
 
     def __exit__(self, *args):
         if self._prev_value is None:
-            del self._object.__dict__[self._field]
+            delattr(self._object, self._field)
         else:
-            self._object.__dict__[self._field] = self._prev_value
+            setattr(self._object, self._field, self._prev_value)
 
 class PatchSet(object):
 
@@ -459,6 +459,18 @@ class TestMock(TestCase):
                 self.mock_fcn('sleep').expect(1).returns(2)
                 ):
             self.assertEquals(2, time.sleep(1))
+
+    def test_class_method_patch(self):
+        class DummyClass(object):
+            @staticmethod
+            def be_smart(x):
+                pass
+        with self.patch(
+                DummyClass,
+                'be_smart',
+                self.mock_fcn('be_smart').expect(1).returns(2)
+                ):
+            self.assertEquals(2, DummyClass.be_smart(1))
 
     def test_patch_non_existant(self):
         import time
