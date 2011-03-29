@@ -35,8 +35,7 @@ class MockException(Exception):
     """
     Exception class raised when errors are detected in mock functions.
     """
-    
-    pass
+
 
 class ExpectedCall(object):
 
@@ -51,6 +50,32 @@ class ExpectedCall(object):
         self.return_value = None
         self.exception = None
 
+    def __str__(self):
+        result = []
+        result.append(self.fcn.name)
+        result.append('(')
+        need_comma = False
+        for arg in self.args:
+            if need_comma:
+                result.append(', ')
+            result.append(repr(arg))
+            need_comma = True
+        for k in sorted(self.kwargs.keys()):
+            if need_comma:
+                result.append(', ')
+            result.append(k)
+            result.append(' = ')
+            result.append(repr(self.kwargs[k]))
+        result.append(')')
+        if self.return_value is not None:
+            result.append(' returns ')
+            result.append(repr(self.return_value))
+        if self.exception is not None:
+            result.append(' raises ')
+            result.append(repr(self.exception))
+        return ''.join(result)
+
+
 class CallContext(object):
 
     """
@@ -61,6 +86,7 @@ class CallContext(object):
 
     def __init__(self):
         self._calls = []
+        self._completed_calls = []
 
     def expect(self, fcn, *args, **kwargs):
         self._calls.append(ExpectedCall(fcn, args, kwargs))
@@ -74,28 +100,18 @@ class CallContext(object):
         self._calls[-1].exception = exception
 
     def call(self, fcn, *args, **kwargs):
+        actual_call = ExpectedCall(fcn, args, kwargs)
         if len(self._calls) == 0:
-            raise MockException("Unexpected call of '%s'" % fcn.name)
-        call = self._calls.pop(0)
+            raise self._make_exception('Unexpected call', actual_call)
+        call = self._calls[0]
         if call.fcn != fcn:
-            raise MockException(
-                    "Unexpected call of '%s'; expected '%s'" %
-                    (fcn.name, call.fcn.name)
-                    )
+            raise self._make_exception('Wrong call', actual_call)
         if call.args != args:
-            message = (
-                ("Argument mismatch for '%s':\n" % fcn.name) +
-                ("Expected arguments: %s\n" % str(call.args)) +
-                ("Actual arguments:   %s\n" % str(args))
-                )
-            raise MockException(message)
+            raise self._make_exception('Argument mismatch', actual_call)
         if call.kwargs != kwargs:
-            message = (
-                ("Argument mismatch for '%s':\n" % fcn.name) +
-                ("Expected keyword arguments: %s\n" % str(call.kwargs)) +
-                ("Actual keyword arguments:   %s\n" % str(kwargs))
-                )
-            raise MockException(message)
+            raise self._make_exception('Keyword argument mismatch', actual_call)
+        self._calls.pop(0)
+        self._completed_calls.append(call)
         if call.exception is not None:
             raise call.exception
         else:
@@ -108,6 +124,25 @@ class CallContext(object):
         """
         if len(self._calls) != 0:
             raise MockException("Still expecting more function calls")
+
+    def _make_exception(self, message, actual_call):
+        text = [message]
+        text.append('')
+        text.append('Completed calls:')
+        for call in self._completed_calls:
+            text.append(str(call))
+        text.append('')
+        if actual_call is not None:
+            text.append('Actual call:')
+            text.append(str(actual_call))
+            text.append('')
+        text.append('Expected calls:')
+        for call in self._calls:
+            text.append(str(call))
+        result = MockException('\n'.join(text))
+        self._calls = []
+        self._completed_calls = []
+        return result
 
     def _check_last_call(self, fcn, reason):
         if len(self._calls) == 0:
@@ -237,7 +272,8 @@ class MockObject(object):
         
         mock_object_names[id(self)] = name
         for method in methods:
-            self.__dict__[method] = MockFunction(context, method)
+            fcn_name = name + '.' + method
+            self.__dict__[method] = MockFunction(context, fcn_name)
         for (key, value) in kwargs.items():
             self.__dict__[key] = value
 
@@ -535,6 +571,32 @@ class TestMock(TestCase):
         def should_raise():
             x.foo()
         self.assertRaises(MockException, should_raise)
+
+    def test_call_history(self):
+        double = self.mock_fcn('double')
+        car = self.mock_obj('car', ['drive', 'stop'])
+        car.drive.expect('60mph').returns(True)
+        double.expect(2).returns(4)
+        car.stop.expect().raises(OSError('ack'))
+        car.drive('60mph')
+        try:
+            double(3)
+            self.fail('should have thrown')
+        except MockException as e:
+            self.assertEqual(
+                """Argument mismatch
+
+Completed calls:
+car.drive('60mph') returns True
+
+Actual call:
+double(3)
+
+Expected calls:
+double(2) returns 4
+car.stop() raises OSError('ack',)""",
+                e.message
+                )
 
 if __name__ == '__main__':
     unittest.main()
