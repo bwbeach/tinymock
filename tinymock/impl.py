@@ -210,14 +210,19 @@ class MockFunction(object):
 #
 # __getattribute__ is not listed because it makes my head hurt.
 #
+# __repr__ is used when printing mock objects
+#
+# __eq__ is used when comparing mock objects used as argements to mock
+# functions.
+#
 
 BUILTINS = """
     abs add and call cmp coerce complex contains delattr delete
-    delitem delslice div divmod enter eq exit float floordiv ge get
+    delitem delslice div divmod enter exit float floordiv ge get
     getitem getslice gt hash hex iadd iand idiv ifloordiv
     ilshift imod imul index int invert ior ipow isub iter itruediv
     ixor le len long lshift lt mod mul ne neg nonzero oct or pos pow
-    radd rand rdiv rdivmod repr reversed rfloordiv rlshift rmod rmul
+    radd rand rdiv rdivmod reversed rfloordiv rlshift rmod rmul
     ror rpow rrshift rshift rsub rtruediv rxor set setitem
     setslice str sub truediv unicode xor
     """
@@ -289,6 +294,16 @@ class MockObject(object):
             "Mock object %s has no attribute '%s'" %
             (mock_object_names[id(self)], name)
             )
+
+    def __eq__(self, other):
+        """
+        When mock objects are used as parameters to functions, they
+        are compared with '=='.  Object identity is what we want here.
+        """
+        return other is self
+
+    def __repr__(self):
+        return '<MockObject %s>' % mock_object_names[id(self)]
 
 class TestCase(unittest.TestCase):
 
@@ -584,17 +599,23 @@ class TestMock(TestCase):
             self.fail('should have thrown')
         except MockException as e:
             self.assertEqual(
-                """Argument mismatch
+                "Argument mismatch\n\nCompleted calls:\ncar.drive('60mph') returns True\n\nActual call:\ndouble(3)\n\nExpected calls:\ndouble(2) returns 4\ncar.stop() raises OSError('ack',)",
+                e.message
+                )
 
-Completed calls:
-car.drive('60mph') returns True
-
-Actual call:
-double(3)
-
-Expected calls:
-double(2) returns 4
-car.stop() raises OSError('ack',)""",
+    def test_mock_obj_as_arg(self):
+        screw = self.mock_obj('screw')
+        nail = self.mock_obj('nail')
+        hammer = self.mock_obj('hammer', ['pound'])
+        hammer.pound.expect(nail)
+        hammer.pound.expect(nail)
+        hammer.pound(nail)
+        try:
+            hammer.pound(screw)
+            self.fail('should have thrown')
+        except MockException as e:
+            self.assertEqual(
+                'Argument mismatch\n\nCompleted calls:\nhammer.pound(<MockObject nail>)\n\nActual call:\nhammer.pound(<MockObject screw>)\n\nExpected calls:\nhammer.pound(<MockObject nail>)',
                 e.message
                 )
 
