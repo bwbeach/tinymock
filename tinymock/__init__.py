@@ -152,3 +152,4 @@ If you have multiple calls to patch, you can use a PatchSet::
 """
 
 from .impl import TestCase
+from .impl import AnyValue
