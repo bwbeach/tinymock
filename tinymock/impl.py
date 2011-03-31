@@ -1,5 +1,4 @@
 ######################################################################
-
 # 
 # File: impl.py
 # 
@@ -36,6 +35,16 @@ class MockException(Exception):
     """
     Exception class raised when errors are detected in mock functions.
     """
+
+
+class AnyValue(object):
+    """
+    An object that can be passed in as an "expected" value that will match
+    anything.  After matching, the "value" attribute will be equal to what was
+    actually passed in
+    """
+    def __init__(self):
+        self.value = None
 
 
 class ExpectedCall(object):
@@ -100,6 +109,12 @@ class CallContext(object):
         self._check_last_call(fcn, "exception")
         self._calls[-1].exception = exception
 
+    def _arg_mismatch(self, expected, arg):
+        if isinstance(expected, AnyValue):
+            expected.value = arg
+            return False
+        return not expected == arg
+
     def call(self, fcn, *args, **kwargs):
         actual_call = ExpectedCall(fcn, args, kwargs)
         if len(self._calls) == 0:
@@ -107,9 +122,19 @@ class CallContext(object):
         call = self._calls[0]
         if call.fcn != fcn:
             raise self._make_exception('Wrong call', actual_call)
-        if call.args != args:
+        args_mismatch = len(call.args) != len(args)
+        if not args_mismatch:
+            for i in range(len(call.args)):
+                if self._arg_mismatch(call.args[i], args[i]):
+                    args_mismatch = True
+        if args_mismatch:
             raise self._make_exception('Argument mismatch', actual_call)
-        if call.kwargs != kwargs:
+        kwargs_mismatch = call.kwargs.keys() != kwargs.keys()
+        if not kwargs_mismatch:
+            for prop in kwargs:
+                if self._arg_mismatch(call.kwargs[prop], kwargs[prop]):
+                    kwargs_mismatch = True
+        if kwargs_mismatch:
             raise self._make_exception('Keyword argument mismatch', actual_call)
         self._calls.pop(0)
         self._completed_calls.append(call)
@@ -440,9 +465,17 @@ class TestMock(TestCase):
             f(2)
         self.assertRaises(MockException, should_raise)
 
+    def test_function_arg_match(self):
+        any_arg = AnyValue()
+        f = self.mock_fcn('f').expect(1, any_arg)
+        f(1, 10)
+        self.assertEquals(10, any_arg.value)
+
     def test_function_keyword(self):
-        f = self.mock_fcn('f').expect(a = 5)
-        f(a = 5)
+        any_arg = AnyValue()
+        f = self.mock_fcn('f').expect(a = 5, b = any_arg)
+        f(a = 5, b = 'x')
+        self.assertEquals('x', any_arg.value)
 
     def test_function_extra_keyword(self):
         f = self.mock_fcn('f').expect()
