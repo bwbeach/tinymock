@@ -1,0 +1,7 @@
+The implementation of tinymock is in tinymock/impl.py.  To test it:
+
+    cd tinymock ; python impl.py
+
+The documentation is in tinymock/__init__.py.  To build it, install sphinx, and:
+
+    cd doc ; make html
