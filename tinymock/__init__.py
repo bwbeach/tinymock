@@ -2,7 +2,7 @@
 # 
 # File: __init__.py
 # 
-# Copyright 2011 TiVo Inc. All Rights Reserved. by Brian Beach and Jaran Charumilind
+# Copyright 2011 by Brian Beach and Jaran Charumilind
 # 
 # This software is licensed under the MIT license.
 # 
