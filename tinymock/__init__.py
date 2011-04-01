@@ -54,6 +54,18 @@ tells the mock function to expect a call with the values that you are
 expecting the function to be called with.  In the case above, the mock
 fuction is expecting a 1 to be passed in.
 
+Sometimes you don't know exactly what value will be passed in to a
+mock function.  The AnyValue class handles this case by matching any
+value that is passed in, and remembering the value so you can check it
+after the mock function has been called::
+
+    class TestIt(timymock.TestCase):
+        def test_any_value(self):
+            any_value = tinymock.AnyValue()
+            fcn = self.mock_fcn("fcn").expect(2, any_value)
+            fcn(2, "hello")
+            self.assertEquals("hello", any_value.value)
+
 A return value can be specified by calling the returns method on the
 mock function object after a call.  Here is an example that calls a
 function that expects no arguments and returns 2::
