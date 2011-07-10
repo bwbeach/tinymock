@@ -400,7 +400,11 @@ class Patch(object):
         self._value = value
 
     def __enter__(self):
-        self._prev_value = getattr(self._object, self._field, None)
+        # We get the previous value through the __dict__ rather than using
+        # getattr, since getattr transforms static and class methods into
+        # functions and bound methods, respectively.  We just want the raw
+        # value so that we can restore it easily on context exit.
+        self._prev_value = self._object.__dict__.get(self._field)
         setattr(self._object, self._field, self._value)
 
     def __exit__(self, *args):
@@ -545,17 +549,25 @@ class TestMock(TestCase):
                 ):
             self.assertEquals(2, time.sleep(1))
 
-    def test_class_method_patch(self):
+    def test_static_method_patch(self):
         class DummyClass(object):
             @staticmethod
             def be_smart(x):
-                pass
-        with self.patch(
-                DummyClass,
-                'be_smart',
-                self.mock_fcn('be_smart').expect(1).returns(2)
-                ):
+                return x
+        be_smart = self.mock_fcn('be_smart').expect(1).returns(2)
+        with self.patch(DummyClass, 'be_smart', staticmethod(be_smart)):
             self.assertEquals(2, DummyClass.be_smart(1))
+        self.assertEquals(0, DummyClass.be_smart(0))
+
+    def test_class_method_patch(self):
+        class DummyClass(object):
+            @classmethod
+            def be_smart(cls, x):
+                return x
+        be_smart = self.mock_fcn('be_smart').expect(DummyClass, 1).returns(2)
+        with self.patch(DummyClass, 'be_smart', classmethod(be_smart)):
+            self.assertEquals(2, DummyClass.be_smart(1))
+        self.assertEquals(0, DummyClass.be_smart(0))
 
     def test_patch_non_existant(self):
         import time
