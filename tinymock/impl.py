@@ -76,6 +76,7 @@ class ExpectedCall(object):
             result.append(k)
             result.append(' = ')
             result.append(repr(self.kwargs[k]))
+            need_comma = True
         result.append(')')
         if self.return_value is not None:
             result.append(' returns ')
@@ -129,7 +130,7 @@ class CallContext(object):
                     args_mismatch = True
         if args_mismatch:
             raise self._make_exception('Argument mismatch', actual_call)
-        kwargs_mismatch = call.kwargs.keys() != kwargs.keys()
+        kwargs_mismatch = set(call.kwargs.keys()) != set(kwargs.keys())
         if not kwargs_mismatch:
             for prop in kwargs:
                 if self._arg_mismatch(call.kwargs[prop], kwargs[prop]):
