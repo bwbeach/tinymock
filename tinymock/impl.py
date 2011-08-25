@@ -150,7 +150,7 @@ class CallContext(object):
         happened.  Raises an exception if not.
         """
         if len(self._calls) != 0:
-            raise MockException("Still expecting more function calls")
+            raise self._make_exception("Still expecting more function calls", None)
 
     def _make_exception(self, message, actual_call):
         text = [message]
